@@ -1,51 +1,91 @@
 const express = require('express');
+const Blockchain = require('../blockchain/blockchain');
 const bodyParser = require('body-parser');
-const Blockchain = require('../Base/Blockchain');
-const P2pServer = require('../PP/p2p-server');
-const Wallet = require('../Wallet/Wallet');
-const ReportPool = require('../Wallet/ReportPool');
-const Miner = require('./Miner');
+const P2pserver = require('./p2p-server');
+const Miner = require('./miner');
 
-const HTTP_PORT = process.env.HTTP_PORT || 2266;
+//get the port from the user or set the default port
+const HTTP_PORT = process.env.HTTP_PORT || 3001;
 
-const app = express();
-const bc = new Blockchain();
-const wallet = new Wallet();
-const rp = new ReportPool();
-const p2pSever = new P2pServer(bc,rp);
-const miner = new Miner(bc,rp,wallet,p2pSever);
+const Wallet = require('../wallet/wallet');
+const RTPool = require('../wallet/rt-pool');
 
+//create a new app
+const app  = express();
+
+//using the blody parser middleware
 app.use(bodyParser.json());
 
-app.get('/blocks', (req, res) => {
-    res.json(bc.chain)
+// create a new blockchain instance
+const blockchain = new Blockchain();
+
+// create a new wallet
+const wallet = new Wallet();
+
+// create a new RT pool which will be later
+// decentralized and synchronized using the peer to peer server
+const rtPool = new RTPool();
+
+// create a p2p server instance with the blockchain and the RT pool
+const p2pserver = new P2pserver(blockchain,rtPool);
+
+// create a miner
+const miner = new Miner(blockchain,rtPool,wallet,p2pserver);
+//EXPOSED APIs
+
+//api to get the blocks
+app.get('/blocks',(req,res)=>{
+
+    res.json(blockchain.chain);
+
 });
 
-app.post('/mine',(req,res)=> {
-    const block = bc.addBlock(req.body.data);
-    p2pSever.syncChains();
-    res.redirect('/block')
+//api to add blocks
+app.post('/mine',(req,res)=>{
+    const block = blockchain.addBlock(req.body.data);
+    console.log(`New block added: ${block.toString()}`);
+    
+    /**
+     * use the synchain method to synchronise the
+     * state of the blockchain
+     */
+    p2pserver.syncChain();
+    res.redirect('/blocks');
 });
 
-app.get('/transactions',(req,res)=>{
-    res.json(rp.reports);
-});
-
-app.post('/transact',(req,res)=> {
-    const{recipient,amount} = req.body;
-    const report = wallet.createTransaction(recipient,amount,bc,rp);
-    p2pSever.broadcastReport(report);
-    res.redirect('/transactions');
-});
-
-app.get('/mine-transactions',(req,res)=>{
+// api to start mining
+app.get('/mine-rts',(req,res)=>{
     const block = miner.mine();
-    res.redirect('/blocks')
+    console.log(`New block added: ${block.toString()}`);
+    res.redirect('/blocks');
 });
 
+// api to view RT in the RT pool
+app.get('/rts',(req,res)=>{
+    res.json(rtPool.RTs);
+});
+
+
+// create RT
+app.post('/rt',(req,res)=>{
+    const { report , transaction } = req.body;
+    console.log("BOD",req.body)
+    console.log("REPORTT",report)
+    console.log("Transact",transaction)
+    const rt = wallet.createRT(report, transaction,blockchain,rtPool);
+    p2pserver.broadcastRT(rt);
+    res.redirect('/rts');
+});
+
+// get public key
 app.get('/public-key',(req,res)=>{
-    res.json({publicKey : wallet.publicKey});
+    res.json({publicKey: wallet.publicKey});
 });
 
-app.listen(HTTP_PORT,()=>console.log(`Listening on port ${HTTP_PORT}`));
-p2pSever.listen();
+// app server configurations
+app.listen(HTTP_PORT,()=>{
+    console.log(`listening on port ${HTTP_PORT}`);
+});
+
+// p2p server configuration
+p2pserver.listen();
