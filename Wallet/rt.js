@@ -51,11 +51,11 @@ class RT {
         var transactions = [];
         if (transaction&&transaction.amount) {
             if (transaction.amount > senderWallet.balance) {
-                console.log(`Amount : ${amount} exceeds the balance`);
+                console.log(`Amount : ${transaction.amount} exceeds the balance`);
                 return;
             }
             transactions = [{amount: senderWallet.balance - transaction.amount, address: senderWallet.publicKey},
-                {amount: transaction.amount, address: transaction.recipient}];
+                {amount: transaction.amount, address: transaction.address}];
         }
         // call to the helper function that creates and signs the transaction outputs
         return RT.rtWithReportAndTransactions(senderWallet, report, transactions)

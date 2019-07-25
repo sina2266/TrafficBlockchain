@@ -11,7 +11,7 @@ const Wallet = require('../wallet/wallet');
 const RTPool = require('../wallet/rt-pool');
 
 //create a new app
-const app  = express();
+const app = express();
 
 //using the blody parser middleware
 app.use(bodyParser.json());
@@ -27,24 +27,24 @@ const wallet = new Wallet();
 const rtPool = new RTPool();
 
 // create a p2p server instance with the blockchain and the RT pool
-const p2pserver = new P2pserver(blockchain,rtPool);
+const p2pserver = new P2pserver(blockchain, rtPool);
 
 // create a miner
-const miner = new Miner(blockchain,rtPool,wallet,p2pserver);
+const miner = new Miner(blockchain, rtPool, wallet, p2pserver);
 //EXPOSED APIs
 
 //api to get the blocks
-app.get('/blocks',(req,res)=>{
+app.get('/blocks', (req, res) => {
 
     res.json(blockchain.chain);
 
 });
 
 //api to add blocks
-app.post('/mine',(req,res)=>{
+app.post('/mine', (req, res) => {
     const block = blockchain.addBlock(req.body.data);
     console.log(`New block added: ${block.toString()}`);
-    
+
     /**
      * use the synchain method to synchronise the
      * state of the blockchain
@@ -54,36 +54,46 @@ app.post('/mine',(req,res)=>{
 });
 
 // api to start mining
-app.get('/mine-rts',(req,res)=>{
+app.get('/mine-rts', (req, res) => {
     const block = miner.mine();
     console.log(`New block added: ${block.toString()}`);
     res.redirect('/blocks');
 });
 
 // api to view RT in the RT pool
-app.get('/rts',(req,res)=>{
+app.get('/rts', (req, res) => {
     res.json(rtPool.RTs);
 });
 
 
 // create RT
-app.post('/rt',(req,res)=>{
-    const { report , transaction } = req.body;
-    console.log("BOD",req.body)
-    console.log("REPORTT",report)
-    console.log("Transact",transaction)
-    const rt = wallet.createRT(report, transaction,blockchain,rtPool);
-    p2pserver.broadcastRT(rt);
-    res.redirect('/rts');
+app.post('/rt', (req, res) => {
+    const {report, transaction} = req.body;
+    const rt = wallet.createRT(report, transaction, blockchain, rtPool);
+    if (!rt)
+        res.json({Error : "No RT created"});
+    else {
+        p2pserver.broadcastRT(rt);
+        res.redirect('/rts');
+    }
+});
+
+
+// get wallet balance
+app.all('/balance', (req, res) => {
+    //if no address associated use current user's wallet address
+    const address = req.body.address || wallet.publicKey;
+    const balance = Wallet.calculateBalanceWithAddress(blockchain, address);
+    res.json({balance: balance});
 });
 
 // get public key
-app.get('/public-key',(req,res)=>{
+app.get('/public-key', (req, res) => {
     res.json({publicKey: wallet.publicKey});
 });
 
 // app server configurations
-app.listen(HTTP_PORT,()=>{
+app.listen(HTTP_PORT, () => {
     console.log(`listening on port ${HTTP_PORT}`);
 });
 
